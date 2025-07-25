@@ -5,15 +5,16 @@
 
 | File name | label | Read length | Phred encoding |
 |---|---|---|---|
-| 1294_S1_L008_R1_001.fastq.gz |  |  |  |
-| 1294_S1_L008_R2_001.fastq.gz |  |  |  |
-| 1294_S1_L008_R3_001.fastq.gz |  |  |  |
-| 1294_S1_L008_R4_001.fastq.gz |  |  |  |
+| 1294_S1_L008_R1_001.fastq.gz | read1 | 101 | phred+33 |
+| 1294_S1_L008_R2_001.fastq.gz | index1 | 8 | phred+33 |
+| 1294_S1_L008_R3_001.fastq.gz | index2 | 8 | phred+33 |
+| 1294_S1_L008_R4_001.fastq.gz | read2 | 101 | phred+33 |
 
 2. Per-base NT distribution
     1. Use markdown to insert your 4 histograms here.
     2. **YOUR ANSWER HERE**
-    3. **YOUR ANSWER HERE**
+    3. command: ```zcat 1294_S1_L008_R2_001.fastq.gz 1294_S1_L008_R3_001.fastq.gz | sed -n '2~4p' | grep -E "N" | wc -l```  
+    answer: 7304664
     
 ## Part 2
 1. Define the problem
@@ -25,3 +26,5 @@
     2. Function headers (name and parameters)
     3. Test examples for individual functions
     4. Return statement
+
+made Pseudocode.md for part 2
