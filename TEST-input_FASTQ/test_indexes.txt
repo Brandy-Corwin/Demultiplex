@@ -1,6 +1,3 @@
 sample	group	treatment	index	index sequence
 1	2A	control	A1	AACT
 2	2B	control	B2	CTGT
-3	2B	control	C3	TTGC
-4	2C	mbnl	C4	GGGT
-5	2C	control	C5	CTAA
