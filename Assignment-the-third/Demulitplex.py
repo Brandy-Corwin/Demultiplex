@@ -3,6 +3,8 @@
 import argparse
 import gzip
 import bioinfo
+import numpy as np
+import matplotlib.pyplot as plt
 
 # Define arguments that the user needs to input
 def get_args():
@@ -42,12 +44,12 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
     
     # Open all write files and create set of indexes
     files_dict = {}
-    index_set = set()
+    index_list = []
     for line in index_file:
         if "index sequence" in line:
             continue
         index = line.strip('\n').split('\t')[-1]
-        index_set.add(index)
+        index_list.append(index)
         files_dict[index] = (open("fastqs/" + index + "_R1.fastq", "w"), open("fastqs/" + index + "_R2.fastq", "w"))
     files_dict["unknown"] = (open("fastqs/unknown_R1.fastq", "w"), open("fastqs/unknown_R2.fastq", "w"))
     files_dict["swapped"] = (open("fastqs/swapped_R1.fastq", "w"), open("fastqs/swapped_R2.fastq", "w"))
@@ -58,6 +60,10 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
     num_unknown = 0
     swaps = {}
     matched = {}
+    # Matches in swaps dict will be labeled as 0, will only increment in matched dictionary
+    for index1 in index_list:
+        for index2 in index_list:
+            swaps[f"{index1}-{index2}"] = 0
 
     # Loop through input fastq files by record
     while True:
@@ -99,7 +105,9 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
         # get the reverse complement of the R3 index
         R3_RC_index = reverse_complement(R3_index)
 
-        if R2_index not in index_set or R3_RC_index not in index_set or R2_avg_qscore < args.qscore or R3_avg_qscore < args.qscore:
+        # If reads are unknown
+        if R2_index not in index_list or R3_RC_index not in index_list or R2_avg_qscore < args.qscore or R3_avg_qscore < args.qscore:
+            # write reads to R1 and R2 files
             files_dict["unknown"][0].write(f"{R1_header} {R2_index}-{R3_RC_index}\n")
             files_dict["unknown"][0].write(f"{R1_seq}\n")
             files_dict["unknown"][0].write(f"{R1_plus}\n")
@@ -110,9 +118,12 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
             files_dict["unknown"][1].write(f"{R4_plus}\n")
             files_dict["unknown"][1].write(f"{R4_qscore}\n")
 
+            # Increment total unknown read-pairs
             num_unknown += 1
 
+        # If reads are swapped
         elif R2_index != R3_RC_index:
+            # write reads to R1 and R2 files
             files_dict["swapped"][0].write(f"{R1_header} {R2_index}-{R3_RC_index}\n")
             files_dict["swapped"][0].write(f"{R1_seq}\n")
             files_dict["swapped"][0].write(f"{R1_plus}\n")
@@ -123,13 +134,13 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
             files_dict["swapped"][1].write(f"{R4_plus}\n")
             files_dict["swapped"][1].write(f"{R4_qscore}\n")
 
+            # Increment total swaps and add or increment specific swap to dictionary
             num_swapped +=1
-            if (R2_index, R3_RC_index) not in swaps:
-                swaps[(R2_index, R3_RC_index)] = 1
-            elif (R2_index, R3_RC_index) in swaps:
-                swaps[(R2_index, R3_RC_index)] += 1
+            swaps[f"{R2_index}-{R3_RC_index}"] += 1
 
+        #If reads are matched
         elif R2_index == R3_RC_index:
+            # write reads to R1 and R2 files
             files_dict[R2_index][0].write(f"{R1_header} {R2_index}-{R3_RC_index}\n")
             files_dict[R2_index][0].write(f"{R1_seq}\n")
             files_dict[R2_index][0].write(f"{R1_plus}\n")
@@ -140,6 +151,7 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
             files_dict[R2_index][1].write(f"{R4_plus}\n")
             files_dict[R2_index][1].write(f"{R4_qscore}\n")
 
+            # Increment total matches and add or increment specific match to dictionary
             num_matched += 1
             if R2_index not in matched:
                 matched[R2_index] = 1
@@ -155,6 +167,7 @@ with (open(args.indexes, "r") as index_file, gzip.open(args.file1, "r") as R1, g
     files_dict["unknown"][0].close()
     files_dict["unknown"][1].close()
 
+# Print out output summary/report
 print(f"There were {num_matched} matched read-pairs ({num_matched/(num_matched+num_swapped+num_unknown)*100}% of total reads)")
 print(f"There were {num_swapped} read-pairs that had index-hopping")
 print(f"There were {num_unknown} read-pairs that either had low quality indexes or unknown indexes")
@@ -165,6 +178,28 @@ for swap in swaps:
     print(f"{swap}\t{swaps[swap]}")
 print("\n")
 
-print(f"Index Matched Pairs\tCount")
+print(f"Index Matched Pairs\tCount\tPercent of Reads Matched\tPercent of Reads Total")
 for match in matched:
-    print(f"{match}\t{matched[match]}")
+    print(f"{match}\t{matched[match]}\t{(matched[match]/num_matched)*100}\t{(matched[match]/(num_matched+num_swapped+num_unknown))*100}")
+
+# Make heatmap of swaps
+fig, ax = plt.subplots()
+keys = list(swaps.keys())
+values = np.array(list(swaps.values())).reshape(24,24)
+plt.imshow(values, cmap='viridis', aspect='auto')
+plt.colorbar(label='Value')
+plt.xticks(ticks=np.arange(len(index_list)), labels = index_list, rotation=90)
+plt.yticks(ticks=np.arange(values.shape[0]), labels = index_list)
+ax.set_title("Number of Read-Pair Swaps")
+plt.tight_layout()
+plt.savefig(f"swapped.png")
+
+# make bar graph of Matches
+fig, ax = plt.subplots()
+ax.bar(matched.keys(), matched.values())
+plt.xticks(rotation=90)
+ax.set_xlabel("Matches")
+ax.set_ylabel("Count")
+ax.set_title("Number of Read-Pair Matches")
+plt.tight_layout()
+plt.savefig(f"matched.png")
